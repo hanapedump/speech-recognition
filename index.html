@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Speech Recognition Output</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap');
+
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #374151;
+      --muted-text-color: #6b7280; /* neutral gray */
+      --primary-color: #111827;
+      --card-bg: #f9fafb;
+      --shadow-color: rgba(0, 0, 0, 0.05);
+      --border-radius: 0.75rem;
+      --transition-speed: 0.3s;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+        Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+      line-height: 1.6;
+      font-size: 18px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+    }
+    header {
+      max-width: 1200px;
+      width: 100%;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    header h1 {
+      font-weight: 700;
+      font-size: 3rem;
+      color: var(--primary-color);
+      margin: 0;
+      user-select: none;
+    }
+    main {
+      max-width: 600px;
+      width: 100%;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: 0 4px 12px var(--shadow-color);
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      user-select: none;
+    }
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      padding: 0.75rem 2rem;
+      font-size: 1.125rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color var(--transition-speed), transform var(--transition-speed);
+      box-shadow: 0 2px 8px rgba(17, 24, 39, 0.3);
+      user-select: none;
+    }
+    button:hover,
+    button:focus {
+      background-color: #374151;
+      outline: none;
+      transform: scale(1.05);
+      box-shadow: 0 4px 16px rgba(17, 24, 39, 0.5);
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    .output {
+      width: 100%;
+      min-height: 120px;
+      border-radius: 0.5rem;
+      background: white;
+      border: 1px solid #d1d5db;
+      padding: 1rem 1.25rem;
+      font-size: 1rem;
+      color: var(--text-color);
+      white-space: pre-wrap;
+      user-select: text;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      box-shadow: inset 0 1px 3px #e5e7eb;
+      transition: border-color var(--transition-speed);
+    }
+    .output.empty {
+      color: var(--muted-text-color);
+      font-style: italic;
+    }
+    .status {
+      font-size: 0.9rem;
+      color: var(--muted-text-color);
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Speech Recognition Output</h1>
+  </header>
+  <main>
+    <section class="card" aria-label="Speech recognition control and output">
+      <button id="toggle-recognition" aria-pressed="false" aria-live="polite" aria-describedby="status-text">
+        Start Recognition
+      </button>
+      <div id="status-text" class="status" aria-live="polite" aria-atomic="true">Idle</div>
+      <div id="output" class="output empty" role="textbox" aria-multiline="true" tabindex="0">Nothing recognized yet...</div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const outputEl = document.getElementById('output');
+      const toggleBtn = document.getElementById('toggle-recognition');
+      const statusText = document.getElementById('status-text');
+
+      let recognition;
+      let recognizing = false;
+
+      function updateUIOnStart() {
+        toggleBtn.textContent = 'Stop Recognition';
+        toggleBtn.setAttribute('aria-pressed', 'true');
+        statusText.textContent = 'Listening...';
+      }
+      function updateUIOnStop() {
+        toggleBtn.textContent = 'Start Recognition';
+        toggleBtn.setAttribute('aria-pressed', 'false');
+        statusText.textContent = 'Idle';
+      }
+      function appendTranscript(text) {
+        if (outputEl.classList.contains('empty')) {
+          outputEl.textContent = '';
+          outputEl.classList.remove('empty');
+        }
+        outputEl.textContent += text + ' ';
+      }
+
+      function startRecognition() {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+          alert('Speech Recognition is not supported in this browser.');
+          return;
+        }
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          recognizing = true;
+          updateUIOnStart();
+          outputEl.focus();
+        };
+        recognition.onerror = (event) => {
+          // For demo, just show errors as status updates
+          statusText.textContent = 'Error: ' + event.error;
+        };
+        recognition.onend = () => {
+          recognizing = false;
+          updateUIOnStop();
+        };
+        recognition.onresult = (event) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          if (finalTranscript) {
+            appendTranscript(finalTranscript.trim());
+          }
+          // show interim in gray italics after recognized text
+          outputEl.textContent = (outputEl.classList.contains('empty') ? '' : outputEl.textContent);
+          if (interimTranscript) {
+            outputEl.textContent += interimTranscript;
+          }
+        };
+
+        recognition.start();
+      }
+
+      function stopRecognition() {
+        if (recognition) {
+          recognition.stop();
+        }
+      }
+
+      toggleBtn.addEventListener('click', () => {
+        if (recognizing) {
+          stopRecognition();
+        } else {
+          startRecognition();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
+
